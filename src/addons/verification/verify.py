@@ -10,7 +10,7 @@ get_options = Bloxlink.get_module("trello", attrs="get_options")
 post_event = Bloxlink.get_module("utils", attrs=["post_event"])
 
 
-@Bloxlink.command
+
 class VerifyCommand(Bloxlink.Module):
     """link your Roblox account to your Discord account and get your server roles"""
 
@@ -165,7 +165,7 @@ class VerifyCommand(Bloxlink.Module):
                 "name": "welcome_message",
                 "formatting": False,
                 "max": 1500
-            }]))["welcome_message"]
+            }], last=True))["welcome_message"]
 
             if trello_board and trello_binds_list:
                 try:

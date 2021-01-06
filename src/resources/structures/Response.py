@@ -9,6 +9,7 @@ import asyncio
 loop = asyncio.get_event_loop()
 
 get_features = Bloxlink.get_module("premium", attrs=["get_features"])
+cache_set, cache_get, cache_pop = Bloxlink.get_module("cache", attrs=["set", "get", "pop"])
 
 class ResponseLoading:
     def __init__(self, response, backup_text):
@@ -93,20 +94,32 @@ class ResponseLoading:
 
 class Response(Bloxlink.Module):
     def __init__(self, CommandArgs):
-        self.webhook_only = CommandArgs.guild_data.get("customBot", {})
-
         self.message = CommandArgs.message
         self.guild = CommandArgs.message.guild
         self.author = CommandArgs.message.author
         self.channel = CommandArgs.message.channel
         self.prompt = None # filled in on commands.py
         self.args = CommandArgs
+        self.command = CommandArgs.command
 
         self.delete_message_queue = []
+        self.bot_responses        = []
+
+        if self.command.addon:
+            if hasattr(self.command.addon, "whitelabel"):
+                self.webhook_only = getattr(self.command.addon, "whitelabel")
+            else:
+                self.webhook_only = bool(CommandArgs.guild_data.get("customBot", {}))
+        else:
+            self.webhook_only = bool(CommandArgs.guild_data.get("customBot", {}))
 
         if self.webhook_only:
-            self.bot_name = self.args.guild_data["customBot"].get("name", "Bloxlink")
-            self.bot_avatar = self.args.guild_data["customBot"].get("avatar", "")
+            if isinstance(self.webhook_only, bool):
+                self.bot_name   = self.args.guild_data["customBot"].get("name", "Bloxlink")
+                self.bot_avatar = self.args.guild_data["customBot"].get("avatar", "")
+            else:
+                self.bot_name   = self.webhook_only[0]
+                self.bot_avatar = self.webhook_only[1]
         else:
             self.bot_name = self.bot_avatar = None
 
@@ -114,50 +127,55 @@ class Response(Bloxlink.Module):
         return ResponseLoading(self, text)
 
     def delete(self, *messages):
-        for message in messages:
-            if message:
-                self.delete_message_queue.append(message.id)
+        self.delete_message_queue += messages
 
     async def send(self, content=None, embed=None, on_error=None, dm=False, no_dm_post=False, strict_post=False, files=None, ignore_http_check=False, paginate_field_limit=None, channel_override=None, allowed_mentions=None):
         if dm and not IS_DOCKER:
             dm = False
 
         actually_dm = not self.guild # used to send the "check your DMs!" messages
-
         channel = channel_override or (dm and self.author or self.channel)
+        webhook = None
 
-        verified_webhook = False
-        if self.webhook_only and self.guild:
-            profile, _ = await get_features(Object(id=self.guild.owner_id), guild=self.guild)
+        if self.webhook_only and self.guild and hasattr(channel, "webhooks"):
+            my_permissions = self.guild.me.guild_permissions
 
-            if profile.features.get("premium"):
-                try:
-                    for webhook in await self.channel.webhooks():
-                        verified_webhook = webhook
-                        break
-                except (Forbidden, NotFound):
-                    self.webhook_only = False
+            if my_permissions.manage_webhooks:
+                profile, _ = await get_features(Object(id=self.guild.owner_id), guild=self.guild)
 
-                if not verified_webhook:
-                    # try to create the webhook
-                    try:
-                        verified_webhook = await self.channel.create_webhook(name="Bloxlink Webhooks")
-                        self.webhook_only = True
-                    except (Forbidden, NotFound):
-                        self.webhook_only = False
-                        verified_webhook = False
+                if profile.features.get("premium"):
+                    webhook = await cache_get(f"webhooks:{channel.id}")
 
+                    if not webhook:
                         try:
-                            await channel.send("Customized Bot is enabled, but I couldn't "
-                                               "create the webhook! Please give me the ``Manage Webhooks`` permission.")
-                        except (Forbidden, NotFound):
-                            pass
+                            for webhook in await channel.webhooks():
+                                if webhook.token:
+                                    await cache_set(f"webhooks:{channel.id}", webhook)
+                                    break
+                            else:
+                                webhook = await channel.create_webhook(name="Bloxlink Webhooks")
+                                await cache_set(f"webhooks:{channel.id}", webhook)
 
-                        except asyncio.TimeoutError:
-                            pass
+                        except (Forbidden, NotFound):
+                            self.webhook_only = False
+
+                            try:
+                                msg = await channel.send("Customized Bot is enabled, but I couldn't "
+                                                         "create the webhook! Please give me the ``Manage Webhooks`` permission.")
+                            except (Forbidden, NotFound):
+                                pass
+                            else:
+                                self.bot_responses.append(msg)
             else:
                 self.webhook_only = False
-                verified_webhook = False
+
+                try:
+                    msg = await channel.send("Customized Bot is enabled, but I couldn't "
+                                             "create the webhook! Please give me the ``Manage Webhooks`` permission.")
+                except (Forbidden, NotFound):
+                    pass
+                else:
+                    self.bot_responses.append(msg)
 
 
         paginate = False
@@ -175,69 +193,116 @@ class Response(Bloxlink.Module):
 
         if not paginate:
             try:
-                if verified_webhook and not dm:
+                if webhook and not dm:
                     try:
-                        msg = await verified_webhook.send(embed=embed, content=content,
-                                                          wait=True, username=self.bot_name,
-                                                          avatar_url=self.bot_avatar)
+                        msg = await webhook.send(embed=embed, content=content,
+                                                 wait=True, username=self.bot_name,
+                                                 avatar_url=self.bot_avatar, allowed_mentions=allowed_mentions)
                     except asyncio.TimeoutError:
                         return None
 
+                    except NotFound:
+                        await cache_pop(f"webhooks:{channel.id}")
+
+                        return await self.send(content=content, embed=embed, on_error=on_error, dm=dm, no_dm_post=no_dm_post, strict_post=strict_post, files=files, allowed_mentions=allowed_mentions)
                 else:
                     try:
-                        msg = await channel.send(embed=embed, content=content, files=files)
+                        msg = await channel.send(embed=embed, content=content, files=files, allowed_mentions=allowed_mentions)
+
                     except asyncio.TimeoutError:
                         return None
 
+                    else:
+                        self.bot_responses.append(msg)
+
                 if dm and not no_dm_post and not actually_dm:
-                    if verified_webhook:
+                    if webhook:
                         try:
-                            await verified_webhook.send(content=self.author.mention + ", **check your DMs!**",
-                                                        username=self.bot_name, avatar_url=self.bot_avatar)
+                            msg_ = await webhook.send(content=self.author.mention + ", **check your DMs!**",
+                                                     username=self.bot_name, avatar_url=self.bot_avatar, allowed_mentions=allowed_mentions)
+
                         except asyncio.TimeoutError:
                             return None
 
+                        except NotFound:
+                            await cache_pop(f"webhooks:{channel.id}")
+
+                            return await self.send(content=content, embed=embed, on_error=on_error, dm=dm, no_dm_post=no_dm_post, strict_post=strict_post, files=files, allowed_mentions=allowed_mentions)
+                        else:
+                            self.bot_responses.append(msg_)
                     else:
                         try:
-                            await self.channel.send(self.author.mention + ", **check your DMs!**")
+                            msg_ = await self.channel.send(self.author.mention + ", **check your DMs!**", allowed_mentions=allowed_mentions)
+
                         except asyncio.TimeoutError:
                             return None
+
+                        else:
+                            self.bot_responses.append(msg_)
 
                 return msg
 
             except (Forbidden, NotFound):
-                channel = not strict_post and (dm and self.channel or self.author) or channel # opposite channel
+                channel = channel_override or (not strict_post and (dm and self.channel or self.author) or channel) # opposite channel
 
                 try:
-                    if verified_webhook and not dm:
-                        return await verified_webhook.send(content=on_error or content, embed=embed,
-                                                           wait=True, username=self.bot_name, avatar_url=self.bot_avatar,
-                                                           allowed_mentions=allowed_mentions)
+                    if webhook and not dm:
+                        try:
+                            msg = await webhook.send(content=on_error or content, embed=embed,
+                                                     wait=True, username=self.bot_name, avatar_url=self.bot_avatar,
+                                                     allowed_mentions=allowed_mentions)
 
-                    return await channel.send(content=on_error or content, embed=embed, files=files, allowed_mentions=allowed_mentions)
+                        except NotFound:
+                            await cache_pop(f"webhooks:{channel.id}")
+
+                            return await self.send(content=content, embed=embed, on_error=on_error, dm=dm, no_dm_post=no_dm_post, strict_post=strict_post, files=files, allowed_mentions=allowed_mentions)
+
+                        else:
+                            self.bot_responses.append(msg)
+
+                            return msg
+
+                    msg = await channel.send(content=on_error or content, embed=embed, files=files, allowed_mentions=allowed_mentions)
+
+                    self.bot_responses.append(msg)
+
+                    return msg
 
                 except (Forbidden, NotFound):
                     try:
                         if dm:
-                            if verified_webhook:
+                            if webhook:
                                 try:
-                                    await verified_webhook.send(f"{self.author.mention}, I was unable to DM you. "
-                                                                "Please check your privacy settings and try again.",
-                                                                username=self.bot_name, avatar_url=self.bot_avatar)
+                                    msg_ = await webhook.send(f"{self.author.mention}, I was unable to DM you. "
+                                                               "Please check your privacy settings and try again.",
+                                                               username=self.bot_name, avatar_url=self.bot_avatar, allowed_mentions=allowed_mentions)
+
                                 except asyncio.TimeoutError:
                                     return None
 
+                                except NotFound:
+                                    await cache_pop(f"webhooks:{channel.id}")
+
+                                    return await self.send(content=content, embed=embed, on_error=on_error, dm=dm, no_dm_post=no_dm_post, strict_post=strict_post, files=files, allowed_mentions=allowed_mentions)
+
+                                else:
+                                    self.bot_responses.append(msg_)
+
                             else:
                                 try:
-                                    await self.channel.send(f"{self.author.mention}, I was unable to DM you. "
-                                                            "Please check your privacy settings and try again.")
+                                    msg_ = await self.channel.send(f"{self.author.mention}, I was unable to DM you. "
+                                                                   "Please check your privacy settings and try again.", allowed_mentions=allowed_mentions)
+
                                 except asyncio.TimeoutError:
                                     return None
+
+                                else:
+                                    self.bot_responses.append(msg_)
                         else:
                             try:
                                 await self.author.send(f"You attempted to use command {self.args.command_name} in "
                                                        f"{self.channel.mention}, but I was unable to post there. "
-                                                        "You may need to grant me the ``Embed Links`` permission.", files=files)
+                                                        "You may need to grant me the ``Embed Links`` permission.", files=files, allowed_mentions=allowed_mentions)
                             except asyncio.TimeoutError:
                                 return None
 
@@ -250,6 +315,7 @@ class Response(Bloxlink.Module):
                 if not ignore_http_check:
                     if self.webhook_only:
                         self.webhook_only = False
+
                         return await self.send(content=content, embed=embed, on_error=on_error, dm=dm, no_dm_post=no_dm_post, strict_post=strict_post, files=files, allowed_mentions=allowed_mentions)
 
                     else:

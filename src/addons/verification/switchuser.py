@@ -10,7 +10,6 @@ get_user, verify_as, parse_accounts, update_member, get_nickname, verify_member,
 post_event = Bloxlink.get_module("utils", attrs=["post_event"])
 
 
-@Bloxlink.command
 class SwitchUserCommand(Bloxlink.Module):
     """change your linked Roblox account in a server"""
 
@@ -85,7 +84,7 @@ class SwitchUserCommand(Bloxlink.Module):
                             "type": "choice",
                             "choices": ("yes", "no")
                         }
-                    ])
+                    ], last=True)
 
                     guild = parsed_args["guild"]
                     username = parsed_args["account"]
