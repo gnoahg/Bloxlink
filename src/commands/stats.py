@@ -86,18 +86,19 @@ class StatsCommand(Bloxlink.Module):
         embed.add_field(name="Uptime", value=uptime)
         embed.add_field(name="Memory Usage", value=f"{mem} MB")
 
-        embed.add_field(name="Invite **Bloxlink**", value=f"https://blox.link/invite")
-        embed.add_field(name="Website", value=f"https://blox.link")
+        embed.add_field(name="Invite **Bloxlink**", value="https://blox.link/invite")
+        embed.add_field(name="Website", value="https://blox.link")
+        embed.add_field(name="Repository", value="https://github.com/bloxlink/Bloxlink")
 
         await response.send(embed=embed)
 
-        if IS_DOCKER and RELEASE == "MAIN": # FIXME: temp until we get an update-server
+        if IS_DOCKER and RELEASE == "MAIN":
             await self.r.table("miscellaneous").insert({
                 "id": "stats",
                 "stats": {
                     "guilds": total_guilds,
                     "version": VERSION,
-                    "memory": f"{mem} MB",
+                    "memory": mem,
                     "uptime": uptime,
                     "clusters": clusters
                 }

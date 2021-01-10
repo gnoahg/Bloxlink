@@ -1,9 +1,7 @@
 import re
 import traceback
-import time
-import math
 import asyncio
-import sentry_sdk
+#import sentry_sdk
 from concurrent.futures._base import CancelledError
 from inspect import iscoroutinefunction
 from discord.errors import Forbidden, NotFound, HTTPException
@@ -11,14 +9,14 @@ from discord.utils import find
 from discord import Embed, Object, Member
 from ..exceptions import PermissionError, CancelledPrompt, Message, CancelCommand, RobloxAPIError, RobloxDown, Error # pylint: disable=redefined-builtin, import-error
 from ..structures import Bloxlink, Args, Permissions, Locale, Arguments, Response # pylint: disable=import-error
-from ..constants import MAGIC_ROLES, OWNER, DEFAULTS, RELEASE, SERVER_INVITE # pylint: disable=import-error
+from ..constants import MAGIC_ROLES, OWNER, DEFAULTS, RELEASE, CLUSTER_ID # pylint: disable=import-error
 
 
 get_prefix = Bloxlink.get_module("utils", attrs=["get_prefix"])
 get_features = Bloxlink.get_module("premium", attrs=["get_features"])
 get_board, get_options = Bloxlink.get_module("trello", attrs=["get_board", "get_options"])
-get_addon_commands = Bloxlink.get_module("addonsm", attrs="get_addon_commands")
-cache_get, cache_set, cache_pop = Bloxlink.get_module("cache", attrs=["get", "set", "pop"])
+get_enabled_addons = Bloxlink.get_module("addonsm", attrs="get_enabled_addons")
+cache_get, cache_pop, get_guild_value = Bloxlink.get_module("cache", attrs=["get", "pop", "get_guild_value"])
 
 
 flag_pattern = re.compile(r"--?(.+?)(?: ([^-]*)|$)")
@@ -30,50 +28,58 @@ class Commands(Bloxlink.Module):
     def __init__(self):
         pass
 
+
     async def more_args(self, content_modified, CommandArgs, command_args, arguments):
         parsed_args = {}
 
+        arg_len = len(command_args) if command_args else 0
+        skipped_args = []
+        split = content_modified.split(" ")
+        temp = []
+
+        for arg in split:
+            if arg:
+                if arg.startswith('"') and arg.endswith('"'):
+                    arg = arg.replace('"', "")
+
+                if len(skipped_args) + 1 == arg_len:
+                    t = content_modified.replace('"', "")
+                    toremove = " ".join(skipped_args)
+
+                    if t.startswith(toremove):
+                        t = t[len(toremove):]
+
+                    t = t.strip()
+
+                    skipped_args.append(t)
+
+                    break
+
+                if arg.startswith('"') or (temp and not arg.endswith('"')):
+                    temp.append(arg.replace('"', ""))
+
+                elif arg.endswith('"'):
+                    temp.append(arg.replace('"', ""))
+                    skipped_args.append(" ".join(temp))
+                    temp.clear()
+
+                else:
+                    skipped_args.append(arg)
+
+        if len(skipped_args) > 1:
+            arguments.skipped_args = skipped_args
+        else:
+            if content_modified:
+                arguments.skipped_args = [content_modified]
+            else:
+                arguments.skipped_args = []
+
         if command_args:
-            arg_len = len(command_args)
-            skipped_args = []
-            split = content_modified.split(" ")
-            temp = []
-
-            for arg in split:
-                if arg:
-                    if arg.startswith('"') and arg.endswith('"'):
-                        arg = arg.replace('"', "")
-
-                    if len(skipped_args) + 1 == arg_len:
-                        # t = content_modified.replace('"', "").replace(" ".join(skipped_args), "").strip() # PROBLEM HERE
-                        t = content_modified.replace('"', "")
-                        toremove = " ".join(skipped_args)
-
-                        if t.startswith(toremove):
-                            t = t[len(toremove):]
-
-                        t = t.strip()
-
-                        skipped_args.append(t)
-
-                        break
-
-                    if arg.startswith('"') or (temp and not arg.endswith('"')):
-                        temp.append(arg.replace('"', ""))
-
-                    elif arg.endswith('"'):
-                        temp.append(arg.replace('"', ""))
-                        skipped_args.append(" ".join(temp))
-                        temp.clear()
-
-                    else:
-                        skipped_args.append(arg)
-
-            parsed_args = await arguments.prompt(command_args, skipped_args=skipped_args)
-            # TODO: catch PermissionError from resolver and post the event
+            parsed_args = await arguments.prompt(command_args)
 
 
         return parsed_args, content_modified and content_modified.split(" ") or []
+
 
 
     async def parse_message(self, message, guild_data=None):
@@ -82,12 +88,13 @@ class Commands(Bloxlink.Module):
         author = message.author
         channel = message.channel
 
-        channel_id = channel and str(channel.id)
-        guild_id = guild and str(guild.id)
+        guild_permissions = guild and guild.me.guild_permissions
 
-        guild_data = guild_data or (guild and (await self.r.table("guilds").get(guild_id).run() or {"id": guild_id})) or {}
-        trello_board = await get_board(guild_data=guild_data, guild=guild)
-        prefix, _ = await get_prefix(guild=guild, guild_data=guild_data, trello_board=trello_board)
+        channel_id = channel and str(channel.id)
+        guild_id   = guild and str(guild.id)
+
+        trello_board = guild and await get_board(guild)
+        prefix, _    = await get_prefix(guild, trello_board)
 
         client_match = re.search(f"<@!?{self.client.user.id}>", content)
         check = (content[:len(prefix)].lower() == prefix.lower() and prefix) or client_match and client_match.group(0)
@@ -103,19 +110,13 @@ class Commands(Bloxlink.Module):
             del args[0]
 
             if command_name:
-                # TODO: merge commands from add-ons
-                guild_addons = guild_data.get("addons")
-
-                if guild_addons:
-                    addon_commands = get_addon_commands(guild_data)
-
-                    if addon_commands:
-                        pass # TODO
+                enabled_addons = guild and await get_enabled_addons(guild) or {}
 
                 for index, command in commands.items():
                     if index == command_name or command_name in command.aliases:
                         donator_profile = None
                         actually_dm = command.dm_allowed and not guild
+                        guild_data = guild_data or (guild and (await self.r.table("guilds").get(guild_id).run() or {"id": guild_id})) or {}
 
                         fn = command.fn
                         subcommand_attrs = {}
@@ -139,6 +140,7 @@ class Commands(Bloxlink.Module):
                             flags = {},
                             prefix = prefix,
                             has_permission = False,
+                            command = command
                         )
 
                         if getattr(fn, "__flags__", False):
@@ -151,12 +153,25 @@ class Commands(Bloxlink.Module):
                         locale = Locale(guild_data and guild_data.get("locale", "en") or "en")
                         response = Response(CommandArgs)
 
-                        if guild and RELEASE == "PRO" and command_name not in ("donate", "transfer", "eval", "status"):
+                        if command.addon:
+                            if str(command.addon) not in enabled_addons:
+                                return
+
+                            if getattr(command.addon, "premium", False):
+                                donator_profile, _ = await get_features(Object(id=guild.owner_id), guild=guild)
+
+                                if not donator_profile.features.get("premium"):
+                                    await response.error(f"This add-on requires premium! You may use ``{prefix}donate`` for instructions on donating.\n"
+                                                         f"You may also disable this add-on with ``{prefix}addon change``.")
+
+                                    return
+
+                        if guild and RELEASE == "PRO" and command_name not in ("donate", "transfer", "eval", "status", "prefix"):
                             donator_profile, _ = await get_features(Object(id=guild.owner_id), guild=guild)
 
                             if not donator_profile.features.get("pro"):
                                 await response.error(f"Server not authorized to use Pro. Please use the ``{prefix}donate`` command to see information on "
-                                                     "how to get Bloxlink Pro.")
+                                                      "how to get Bloxlink Pro.")
 
                                 return
 
@@ -169,14 +184,32 @@ class Commands(Bloxlink.Module):
                             if guild.owner != author and not (find(lambda r: r.name in MAGIC_ROLES, author.roles) or author_perms.manage_guild or author_perms.administrator):
                                 if ignored_channels.get(channel_id):
                                     await response.send(f"The server admins have **disabled** all commands in channel {channel.mention}.", dm=True, strict_post=True, no_dm_post=True)
+
+                                    try:
+                                        await message.delete()
+                                    except (Forbidden, NotFound):
+                                        pass
+
                                     return
 
-                                if command_name in disabled_commands.get("global", []):
+                                if command.name in disabled_commands.get("global", []):
                                     await response.send(f"The server admins have **disabled** the command ``{command_name}`` globally.", dm=True, strict_post=True, no_dm_post=True)
+
+                                    try:
+                                        await message.delete()
+                                    except (Forbidden, NotFound):
+                                        pass
+
                                     return
 
-                                elif disabled_commands.get("channels", {}).get(channel_id):
+                                elif disabled_commands.get("channels", {}).get(channel_id) == command.name:
                                     await response.send(f"The server admins have **disabled** the command ``{command_name}`` in channel {channel.mention}.", dm=True, strict_post=True, no_dm_post=True)
+
+                                    try:
+                                        await message.delete()
+                                    except (Forbidden, NotFound):
+                                        pass
+
                                     return
 
                             if not isinstance(author, Member):
@@ -185,7 +218,7 @@ class Commands(Bloxlink.Module):
                                 except NotFound:
                                     return
 
-                        blacklisted_discord = await cache_get("blacklist:discord_ids", author.id, primitives=True)
+                        blacklisted_discord = await cache_get(f"blacklist:discord_ids:{author.id}", primitives=True)
 
                         if blacklisted_discord is not None:
                             blacklist_text = blacklisted_discord and f"has an active restriction for: ``{blacklisted_discord}``" or "has an active restriction from Bloxlink."
@@ -290,14 +323,14 @@ class Commands(Bloxlink.Module):
                                 await response.error(e)
                             else:
                                 await response.error(locale("permissions.genericError"))
+                        except NotFound:
+                            await response.error("A channel or message which was vital to this command was deleted before the command could finish.")
                         except RobloxAPIError:
                             await response.error("The Roblox API returned an error; are you supplying the correct ID to this command?")
                         except RobloxDown:
                             await response.error("The Roblox API is currently offline; please wait until Roblox is back online before re-running this command.")
                         except CancelledPrompt as e:
                             arguments.cancelled = True
-
-                            guild_data = guild_data or (guild and (await self.r.table("guilds").get(guild_id).run() or {"id": guild_id})) or {}
 
                             if trello_board:
                                 trello_options, _ = await get_options(trello_board)
@@ -350,7 +383,9 @@ class Commands(Bloxlink.Module):
                             Bloxlink.error(traceback.format_exc(), title=f"Error source: {command_name}.py")
 
                         finally:
-                            messages = arguments.messages + response.delete_message_queue
+                            delete_messages = response.delete_message_queue
+                            prompt_messages = arguments.messages
+                            bot_responses   = response.bot_responses
 
                             if arguments.dm_post:
                                 if arguments.cancelled:
@@ -360,21 +395,28 @@ class Commands(Bloxlink.Module):
 
                                 try:
                                     await arguments.dm_post.edit(content=content)
-                                except (NotFound, Forbidden):
+                                except NotFound:
                                     pass
 
+                            if guild and guild_permissions.manage_messages:
+                                delete_options = await get_guild_value(guild, ["promptDelete", DEFAULTS.get("promptDelete")], ["deleteCommands", DEFAULTS.get("deleteCommands")])
 
-                            if messages:
-                                if not trello_options_checked and trello_board:
-                                    trello_options, _ = await get_options(trello_board)
-                                    guild_data.update(trello_options)
-                                    trello_options_checked = True
+                                delete_commands_after = delete_options["deleteCommands"]
+                                prompt_delete         = delete_options["promptDelete"]
 
-                                if not actually_dm and guild_data.get("promptDelete", DEFAULTS.get("promptDelete")):
-                                    try:
-                                        await channel.purge(limit=100, check=lambda m: m.id in (*arguments.messages, *response.delete_message_queue))
-                                    except (Forbidden, HTTPException):
-                                        pass
+                                if prompt_delete and prompt_messages:
+                                    delete_messages += prompt_messages
+
+                                if delete_commands_after:
+                                    delete_messages.append(message)
+                                    delete_messages += bot_responses
+
+                                    await asyncio.sleep(delete_commands_after)
+
+                                try:
+                                    await channel.purge(limit=100, check=lambda m: m in delete_messages)
+                                except (Forbidden, HTTPException):
+                                    pass
 
                         break
 
@@ -385,24 +427,27 @@ class Commands(Bloxlink.Module):
         else:
             check_verify_channel = True
 
-        if check_verify_channel and guild:
+        if guild and guild_permissions.manage_messages:
             if not isinstance(author, Member):
                 try:
                     author = await guild.fetch_member(author.id)
                 except NotFound:
                     return
 
-            verify_channel_id = guild_data.get("verifyChannel")
+            if check_verify_channel:
+                verify_channel_id = await get_guild_value(guild, "verifyChannel")
 
-            if verify_channel_id and channel_id == verify_channel_id:
-                if not find(lambda r: r.name in MAGIC_ROLES, author.roles):
-                    try:
-                        await message.delete()
-                    except (Forbidden, NotFound):
-                        pass
+                if verify_channel_id and channel_id == verify_channel_id:
+                    if not find(lambda r: r.name in MAGIC_ROLES, author.roles):
+                        try:
+                            await message.delete()
+                        except (Forbidden, NotFound):
+                            pass
 
 
-    def new_command(self, command_structure):
+
+
+    def new_command(self, command_structure, addon=None):
         c = command_structure()
         command = Command(c)
 
@@ -415,6 +460,7 @@ class Commands(Bloxlink.Module):
                 command.subcommands[attr_name] = attr
 
         commands[command.name] = command
+        command.addon = addon
 
         self.loop.create_task(self.inject_command(command))
 
@@ -428,12 +474,14 @@ class Commands(Bloxlink.Module):
                 subcommand_description = subcommand.__doc__ or "N/A"
                 subcommands.append({"id": subcommand_name, "description": subcommand_description})
 
-        if RELEASE == "MAIN":
+        if RELEASE == "MAIN" and CLUSTER_ID == 0:
+            await self.r.db("bloxlink").table("commands").delete().run()
             await self.r.db("bloxlink").table("commands").insert({
                 "id": command.name,
                 "description": command.description,
                 #"usage": command.usage,
                 "category": command.category,
+                "addon": command.addon and str(command.addon),
                 "hidden": command.hidden,
                 "subcommands": subcommands
             }, conflict="replace").run()
@@ -456,6 +504,7 @@ class Command:
         self.cooldown = getattr(command, "cooldown", 0)
         self.premium = self.permissions.premium or self.category == "Premium"
         self.developer_only = self.permissions.developer_only or self.category == "Developer" or getattr(command, "developer_only", False) or getattr(command, "developer", False)
+        self.addon = getattr(command, "addon", None)
 
         self.usage = []
         command_args = self.arguments
@@ -476,7 +525,7 @@ class Command:
         return self.name
 
     def __repr__(self):
-        return str(self)
+        return self.__str__()
 
     async def check_permissions(self, author, guild, locale, dm=False, permissions=None, **kwargs):
         permissions = permissions or self.permissions
@@ -531,7 +580,7 @@ class Command:
                                 pass
                             else:
                                 raise PermissionError("You either need: a role called ``Bloxlink Updater``, the ``Manage Roles`` "
-                                                    "role permission, or the ``Manage Server`` role permission.")
+                                                      "role permission, or the ``Manage Server`` role permission.")
 
                         elif role_name == "Bloxlink Admin":
                             if author_perms.administrator:

@@ -1,13 +1,11 @@
 from resources.structures.Bloxlink import Bloxlink # pylint: disable=import-error
 from resources.exceptions import PermissionError # pylint: disable=import-error
-from resources.constants import BROWN_COLOR, RELEASE # pylint: disable=import-error
-from resources.secrets import TRELLO # pylint: disable=import-error
+from resources.constants import BROWN_COLOR, RELEASE, TRELLO # pylint: disable=import-error
 from aiotrello.exceptions import TrelloUnauthorized, TrelloNotFound, TrelloBadRequest
-from os import environ as env
-
 
 
 get_prefix, post_event = Bloxlink.get_module("utils", attrs=["get_prefix", "post_event"])
+set_guild_value = Bloxlink.get_module("cache", attrs=["set_guild_value"])
 
 @Bloxlink.command
 class PrefixCommand(Bloxlink.Module):
@@ -58,14 +56,14 @@ class PrefixCommand(Bloxlink.Module):
             trello_board = CommandArgs.trello_board
 
             if trello_board:
-                _, card = await get_prefix(guild=guild, guild_data=guild_data, trello_board=trello_board)
+                _, card = await get_prefix(guild=guild, trello_board=trello_board)
 
                 if card:
                     try:
-                        if card.name == "prefix":
+                        if card.name == prefix_name:
                             await card.edit(desc=new_prefix)
                         else:
-                            await card.edit(name=f"prefix:{new_prefix}")
+                            await card.edit(name=f"{prefix_name}:{new_prefix}")
                     except TrelloUnauthorized:
                         await response.error("In order for me to edit your Trello settings, please add ``@bloxlink`` to your "
                                              "Trello board.")
@@ -75,6 +73,8 @@ class PrefixCommand(Bloxlink.Module):
                         await trello_board.sync(card_limit=TRELLO["CARD_LIMIT"], list_limit=TRELLO["LIST_LIMIT"])
 
             await post_event(guild, guild_data, "configuration", f"{author.mention} ({author.id}) has **changed** the ``prefix`` option.", BROWN_COLOR)
+
+            await set_guild_value(guild, prefix_name, new_prefix)
 
             await response.success("Your prefix was successfully changed!")
 

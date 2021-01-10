@@ -1,20 +1,17 @@
 from os import listdir
 from re import compile
-from ..structures import Bloxlink, DonatorProfile
-from ..exceptions import RobloxAPIError, RobloxDown, RobloxNotFound, Message, CancelCommand
-from config import PREFIX, HTTP_RETRY_LIMIT # pylint: disable=E0611
-from ..constants import RELEASE, TRANSFER_COOLDOWN
+from ..structures import Bloxlink # pylint: disable=import-error, no-name-in-module
+from ..exceptions import RobloxAPIError, RobloxDown, RobloxNotFound, CancelCommand # pylint: disable=import-error, no-name-in-module
+from config import PREFIX # pylint: disable=import-error, no-name-in-module
+from ..constants import RELEASE, HTTP_RETRY_LIMIT # pylint: disable=import-error, no-name-in-module
 from discord.errors import NotFound, Forbidden
-from discord.utils import find
-from discord import Object, Embed
+from discord import Embed
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
-from time import time
-from math import ceil
 import asyncio
 import aiohttp
 
 is_patron = Bloxlink.get_module("patreon", attrs="is_patron")
-cache_set, cache_get, cache_pop = Bloxlink.get_module("cache", attrs=["set", "get", "pop"])
+cache_pop, get_guild_value = Bloxlink.get_module("cache", attrs=["pop", "get_guild_value"])
 
 @Bloxlink.module
 class Utils(Bloxlink.Module):
@@ -26,6 +23,7 @@ class Utils(Bloxlink.Module):
     @staticmethod
     def get_files(directory):
         return [name for name in listdir(directory) if name[:1] != "." and name[:2] != "__" and name != "_DS_Store"]
+
 
     @staticmethod
     def coro_async(corofn, *args):
@@ -41,9 +39,15 @@ class Utils(Bloxlink.Module):
         finally:
             loop.close()
 
+
     async def post_event(self, guild, guild_data, event_name, text, color=None):
-        log_channels = guild_data.get("logChannels", {})
-        log_channel = log_channels.get(event_name) or log_channels.get("all")
+        if guild_data:
+            log_channels = guild_data.get("logChannels")
+        else:
+            log_channels = await get_guild_value(guild, "logChannels")
+
+        log_channels = log_channels or {}
+        log_channel  = log_channels.get(event_name) or log_channels.get("all")
 
         if log_channel:
             text_channel = guild.get_channel(int(log_channel))
@@ -56,6 +60,7 @@ class Utils(Bloxlink.Module):
                     await text_channel.send(embed=embed)
                 except (Forbidden, NotFound):
                     pass
+
 
     async def fetch(self, url, method="GET", params=None, headers=None, raise_on_failure=True, retry=HTTP_RETRY_LIMIT):
         params = params or {}
@@ -106,16 +111,13 @@ class Utils(Bloxlink.Module):
         except asyncio.TimeoutError:
             raise CancelCommand
 
-    async def get_prefix(self, guild=None, guild_data=None, trello_board=None):
-        if not guild:
-            return PREFIX, None
 
-        if RELEASE == "PRO":
-            if guild_data:
-                prefix = guild_data.get("proPrefix")
+    async def get_prefix(self, guild=None, trello_board=None):
+        if RELEASE == "PRO" and guild:
+            prefix = await get_guild_value(guild, "proPrefix")
 
-                if prefix:
-                    return prefix, None
+            if prefix:
+                return prefix, None
 
         if trello_board:
             try:
@@ -138,9 +140,6 @@ class Utils(Bloxlink.Module):
             except asyncio.TimeoutError:
                 pass
 
-
-
-        guild_data = guild_data or await self.r.table("guilds").get(str(guild.id)).run() or {}
-        prefix = guild_data.get("prefix")
+        prefix = guild and await get_guild_value(guild, ["prefix", PREFIX])
 
         return prefix or PREFIX, None

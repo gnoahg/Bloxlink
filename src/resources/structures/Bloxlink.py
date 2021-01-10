@@ -1,11 +1,10 @@
 from importlib import import_module
 from os import environ as env
-from discord import AutoShardedClient, AllowedMentions, Intents, MemberCacheFlags
+from discord import AutoShardedClient, AllowedMentions, Intents
 from config import WEBHOOKS # pylint: disable=E0611
-from ..constants import SHARD_RANGE, CLUSTER_ID, SHARD_COUNT, IS_DOCKER, TABLE_STRUCTURE, RELEASE # pylint: disable=import-error
-from ..secrets import REDIS, RETHINKDB # pylint: disable=import-error
-from . import Args, Permissions # pylint: disable=import-error
-from ast import literal_eval
+from ..constants import SHARD_RANGE, CLUSTER_ID, SHARD_COUNT, IS_DOCKER, TABLE_STRUCTURE, RELEASE, SELF_HOST # pylint: disable=import-error
+from ..secrets import REDIS_PASSWORD, REDIS_PORT, REDIS_HOST, RETHINKDB_HOST, RETHINKDB_DB, RETHINKDB_PASSWORD, RETHINKDB_PORT # pylint: disable=import-error
+from . import Permissions # pylint: disable=import-error
 from async_timeout import timeout
 import functools
 import traceback
@@ -29,6 +28,7 @@ finally:
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").upper()
 LABEL = env.get("LABEL", "Bloxlink")
+SHARD_SLEEP_TIME = int(env.get("SHARD_SLEEP_TIME", "5"))
 
 logger = logging.getLogger()
 
@@ -46,6 +46,12 @@ class BloxlinkStructure(AutoShardedClient):
         #loop.run_until_complete(self.get_session())
         loop.set_exception_handler(self._handle_async_error)
         loop.run_until_complete(self.load_database())
+
+
+    if not SELF_HOST:
+        async def before_identify_hook(self, shard_id, *, initial=False):
+            await asyncio.sleep(SHARD_SLEEP_TIME)
+
 
     async def get_session(self):
         self.session = aiohttp.ClientSession() # headers={"Connection": "close"}
@@ -109,23 +115,17 @@ class BloxlinkStructure(AutoShardedClient):
             pass
 
     def _handle_async_error(self, loop, context):
-        exception = context.get("exception")
+        exception   = context.get("exception")
         future_info = context.get("future")
         title = None
 
         if exception:
             title = exception.__class__.__name__
-
-        if future_info:
-            msg = str(future_info)
+            msg = "".join(traceback.format_exception(etype=type(exception), value=exception, tb=exception.__traceback__))
         else:
-            if exception:
-                msg = str(exception)
-            else:
-                msg = str(context["message"])
+            msg = future_info and str(future_info) or str(context["message"])
 
-
-        self.error(future_info or str(context["message"]), title=title)
+        self.error(msg, title=title)
 
     @staticmethod
     def module(module):
@@ -283,10 +283,10 @@ class BloxlinkStructure(AutoShardedClient):
                 return conn
 
         while True:
-            for host in [RETHINKDB["HOST"], "rethinkdb", "localhost"]:
+            for host in [RETHINKDB_HOST, "rethinkdb", "localhost"]:
                 try:
                     async with timeout(5):
-                        conn = await connect(host, RETHINKDB["PASSWORD"], RETHINKDB["DB"], RETHINKDB["PORT"])
+                        conn = await connect(host, RETHINKDB_PASSWORD, RETHINKDB_DB, RETHINKDB_PORT)
 
                         if conn:
                             # check for missing databases/tables
@@ -296,6 +296,10 @@ class BloxlinkStructure(AutoShardedClient):
 
                 except asyncio.TimeoutError:
                     pass
+
+    async def close_db(self):
+        if self.conn:
+            self.conn.close()
 
     @staticmethod
     def command(*args, **kwargs):
@@ -354,7 +358,7 @@ def load_redis():
     if IS_DOCKER:
         while not redis:
             try:
-                redis = aredis.StrictRedis(host=REDIS["HOST"], port=REDIS["PORT"], password=REDIS["PASSWORD"])
+                redis = aredis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
             except aredis.exceptions.ConnectionError:
                 pass
             else:

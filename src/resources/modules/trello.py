@@ -1,19 +1,17 @@
 from aiotrello import Trello as TrelloClient
-from aiotrello.exceptions import TrelloBadRequest, TrelloUnauthorized, TrelloNotFound, TrelloBadRequest
+from aiotrello.exceptions import TrelloUnauthorized, TrelloNotFound, TrelloHttpError
 from ..structures.Bloxlink import Bloxlink # pylint: disable=import-error
-from ..exceptions import BadUsage # pylint: disable=import-error
+from ..constants import OPTIONS # pylint: disable=import-error
+from ..constants import TRELLO as TRELLO_ # pylint: disable=import-error
+from ..secrets import TRELLO_KEY, TRELLO_TOKEN # pylint: disable=import-error
 from time import time
-from os import environ as env
-from resources.constants import OPTIONS # pylint: disable=import-error
-from resources.secrets import TRELLO as TRELLO_CONFIG # pylint: disable=import-error
 from re import compile
 import asyncio
 
 
 OPTION_NAMES_MAP = {k.lower(): k for k in OPTIONS.keys()}
 
-cache_get, cache_set = Bloxlink.get_module("cache", attrs=["get", "set"])
-
+cache_get, cache_set, get_guild_value = Bloxlink.get_module("cache", attrs=["get", "set", "get_guild_value"])
 
 @Bloxlink.module
 class Trello(Bloxlink.Module):
@@ -21,48 +19,53 @@ class Trello(Bloxlink.Module):
         self.trello_boards = {}
 
         self.trello = TrelloClient(
-            key=TRELLO_CONFIG.get("KEY"),
-            token=TRELLO_CONFIG.get("TOKEN"),
-            cache_mode="none",
-            session=None) # self.session)
+            key=TRELLO_KEY,
+            token=TRELLO_TOKEN,
+            cache_mode="none")
         self.option_regex = compile("(.+):(.+)")
 
 
-    async def get_board(self, guild_data, guild):
+    async def get_board(self, guild, guild_data=None):
         trello_board = None
 
-        if guild_data and guild:
+        if guild_data:
             trello_id = guild_data.get("trelloID")
+        else:
+            trello_id = await get_guild_value(guild, "trelloID")
 
-            if trello_id:
-                trello_board = await cache_get("trello_boards", guild.id)
+        if trello_id:
+            trello_board = await cache_get(f"trello_boards:{guild.id}")
 
-                try:
-                    if not trello_board:
-                        trello_board = await self.trello.get_board(trello_id, card_limit=TRELLO_CONFIG["CARD_LIMIT"], list_limit=TRELLO_CONFIG["LIST_LIMIT"])
-                        await cache_set("trello_boards", guild.id, trello_board)
+            try:
+                if not trello_board:
+                    trello_board = await self.trello.get_board(trello_id, card_limit=TRELLO_["CARD_LIMIT"], list_limit=TRELLO_["LIST_LIMIT"])
+                    await cache_set(f"trello_boards:{guild.id}", trello_board)
 
-                    if trello_board:
-                        t_now = time()
+                if trello_board:
+                    t_now = time()
 
-                        if hasattr(trello_board, "expiration"):
-                            if t_now > trello_board.expiration:
-                                await trello_board.sync(card_limit=TRELLO_CONFIG["CARD_LIMIT"], list_limit=TRELLO_CONFIG["LIST_LIMIT"])
-                                trello_board.expiration = t_now + TRELLO_CONFIG["TRELLO_BOARD_CACHE_EXPIRATION"]
+                    if hasattr(trello_board, "expiration"):
+                        if t_now > trello_board.expiration:
+                            await trello_board.sync(card_limit=TRELLO_["CARD_LIMIT"], list_limit=TRELLO_["LIST_LIMIT"])
+                            trello_board.expiration = t_now + TRELLO_["TRELLO_BOARD_CACHE_EXPIRATION"]
 
-                        else:
-                            trello_board.expiration = t_now + TRELLO_CONFIG["TRELLO_BOARD_CACHE_EXPIRATION"]
+                    else:
+                        trello_board.expiration = t_now + TRELLO_["TRELLO_BOARD_CACHE_EXPIRATION"]
 
-                except (TrelloUnauthorized, ConnectionResetError):
-                    pass
+            except (TrelloUnauthorized, ConnectionResetError):
+                pass
 
-                except (TrelloNotFound, TrelloBadRequest):
-                    guild_data.pop("trelloID")
+            except TrelloHttpError as e:
+                print(e, flush=True)
 
-                    await self.r.table("guilds").get(str(guild.id)).update(guild_data).run()
+            except TrelloNotFound:
+                guild_data = await self.r.db("bloxlink").table("guilds").get(str(guild.id)).run() or {}
+                guild_data.pop("trelloID")
 
-                except asyncio.TimeoutError:
-                    pass
+                await self.r.table("guilds").get(str(guild.id)).update(guild_data).run()
+
+            except asyncio.TimeoutError:
+                pass
 
 
         return trello_board

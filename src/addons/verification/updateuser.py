@@ -1,16 +1,15 @@
 from resources.structures.Bloxlink import Bloxlink # pylint: disable=import-error
 from resources.exceptions import Error, UserNotVerified, Message, BloxlinkBypass, CancelCommand, PermissionError, Blacklisted # pylint: disable=import-error
 from config import REACTIONS # pylint: disable=no-name-in-module
-from resources.constants import CACHE_CLEAR, RELEASE, GREEN_COLOR # pylint: disable=import-error
-from discord import Embed, Object, Role
+from resources.constants import RELEASE, GREEN_COLOR # pylint: disable=import-error
+from discord import Object, Role
 import math
 
 guild_obligations, format_update_embed = Bloxlink.get_module("roblox", attrs=["guild_obligations", "format_update_embed"])
 parse_message = Bloxlink.get_module("commands", attrs=["parse_message"])
 get_features = Bloxlink.get_module("premium", attrs="get_features")
-post_event = Bloxlink.get_module("utils", attrs=["post_event"])
 
-@Bloxlink.command
+
 class UpdateUserCommand(Bloxlink.Module):
     """force update user(s) with roles and nicknames"""
 
@@ -102,7 +101,6 @@ class UpdateUserCommand(Bloxlink.Module):
                 donator_profile, _ = await get_features(author)
                 premium = donator_profile.features.get("premium")
 
-
             cooldown = 0
 
             if len_users > 10:
@@ -134,14 +132,16 @@ class UpdateUserCommand(Bloxlink.Module):
                                 roles             = True,
                                 nickname          = True,
                                 dm                = False,
-                                exceptions        = ("BloxlinkBypass", "UserNotVerified", "Blacklisted"),
-                                cache             = not premium)
+                                exceptions        = ("BloxlinkBypass", "UserNotVerified", "Blacklisted", "PermissionError"),
+                                cache             = False)
                         except BloxlinkBypass:
                             if len_users <= 10:
                                 await response.info(f"{user.mention} **bypassed**")
                         except UserNotVerified:
                             if len_users <= 10:
                                 await response.send(f"{REACTIONS['ERROR']} {user.mention} is **not linked to Bloxlink**")
+                        except PermissionError as e:
+                            raise Error(e)
                         except Blacklisted as b:
                             if len_users <= 10:
                                 await response.send(f"{REACTIONS['ERROR']} {user.mention} has an active restriction.")
@@ -164,21 +164,17 @@ class UpdateUserCommand(Bloxlink.Module):
                         trello_board      = trello_board,
                         roles             = True,
                         nickname          = True,
-                        cache             = not premium,
+                        cache             = False,
                         dm                = False,
-                        exceptions        = ("BloxlinkBypass", "Blacklisted", "CancelCommand", "UserNotVerified"))
+                        event             = True,
+                        exceptions        = ("BloxlinkBypass", "Blacklisted", "CancelCommand", "UserNotVerified", "PermissionError"))
 
-                    _, embed = await format_update_embed(roblox_user, user, added=added, removed=removed, errors=errors, nickname=nickname if old_nickname != user.display_name else None, prefix=prefix, guild_data=guild_data, premium=premium)
+                    _, embed = await format_update_embed(roblox_user, user, added=added, removed=removed, errors=errors, nickname=nickname if old_nickname != user.display_name else None, prefix=prefix, guild_data=guild_data)
 
                     if embed:
                         await response.send(embed=embed)
-                        await post_event(guild, guild_data, "verification", f"{author.mention} ({author.id}) has **verified** as ``{roblox_user.username}``.", GREEN_COLOR)
                     else:
-                        if premium:
-                            await response.success("This user is all up-to-date; no changes were made.")
-                        else:
-                            await response.success("This user is all up-to-date; no changes were made.\n**Disclaimer:** it may take up to "
-                                                   "__10 minutes__ for Bloxlink to recognize a __recent/new rank change__ due to caching.")
+                        await response.success("This user is all up-to-date; no changes were made.")
 
                 except BloxlinkBypass:
                     raise Message("Since you have the ``Bloxlink Bypass`` role, I was unable to update your roles/nickname.", type="info")
@@ -194,6 +190,9 @@ class UpdateUserCommand(Bloxlink.Module):
 
                 except UserNotVerified:
                     raise Error("This user is not linked to Bloxlink.")
+
+                except PermissionError as e:
+                    raise Error(e)
 
             if cooldown:
                 await self.redis.set(redis_cooldown_key, 3, ex=cooldown)

@@ -1,13 +1,10 @@
 from resources.structures.Bloxlink import Bloxlink # pylint: disable=import-error
-from resources.constants import ARROW, BROWN_COLOR, NICKNAME_TEMPLATES, RELEASE # pylint: disable=import-error
+from resources.constants import ARROW, BROWN_COLOR, NICKNAME_TEMPLATES, TRELLO # pylint: disable=import-error
 from resources.exceptions import Error, RobloxNotFound, CancelCommand # pylint: disable=import-error
-from resources.secrets import TRELLO # pylint: disable=import-error
 from aiotrello.exceptions import TrelloNotFound, TrelloUnauthorized, TrelloBadRequest
 from discord.errors import Forbidden, HTTPException
 from discord import Embed
 from discord.utils import find
-from os import environ as env
-import asyncio
 import re
 
 NICKNAME_DEFAULT = "{roblox-name}"
@@ -16,6 +13,7 @@ VERIFIED_DEFAULT = "Verified"
 get_group, generate_code = Bloxlink.get_module("roblox", attrs=["get_group", "generate_code"])
 trello = Bloxlink.get_module("trello", attrs=["trello"])
 post_event = Bloxlink.get_module("utils", attrs=["post_event"])
+clear_guild_data = Bloxlink.get_module("cache", attrs=["clear_guild_data"])
 
 roblox_group_regex = re.compile(r"roblox.com/groups/(\d+)/")
 
@@ -244,7 +242,7 @@ class SetupCommand(Bloxlink.Module):
                 "embed_color": BROWN_COLOR,
                 "formatting": False
             }
-        ], dm=True, no_dm_post=True)
+        ], dm=True, no_dm_post=True, last=True)
 
         if group and group != "skip":
             merge_replace = parsed_args_2.get("merge_replace")
@@ -267,7 +265,7 @@ class SetupCommand(Bloxlink.Module):
 
                 for roleset in sorted_rolesets:
                     roleset_name = roleset.get("name")
-                    roleset_rank = roleset.get("rank")
+                    # roleset_rank = roleset.get("rank")
 
                     if not find(lambda r: r.name == roleset_name, guild.roles):
                         try:
@@ -304,6 +302,8 @@ class SetupCommand(Bloxlink.Module):
         await self.r.table("guilds").insert(guild_data, conflict="replace").run()
 
         await post_event(guild, guild_data, "configuration", f"{author.mention} ({author.id}) has **set-up** the server.", BROWN_COLOR)
+
+        await clear_guild_data(guild)
 
         await response.success("Your server is now **configured** with Bloxlink!", dm=True, no_dm_post=True)
 

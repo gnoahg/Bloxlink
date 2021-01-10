@@ -1,7 +1,6 @@
 from resources.structures.Bloxlink import Bloxlink # pylint: disable=import-error
 from resources.exceptions import Message, Error, CancelledPrompt, PermissionError # pylint: disable=import-error
-from resources.constants import ARROW, OPTIONS, DEFAULTS, NICKNAME_TEMPLATES, ORANGE_COLOR, GOLD_COLOR, BROWN_COLOR # pylint: disable=import-error
-from resources.secrets import TRELLO # pylint: disable=import-error
+from resources.constants import ARROW, OPTIONS, DEFAULTS, NICKNAME_TEMPLATES, ORANGE_COLOR, GOLD_COLOR, BROWN_COLOR, TRELLO # pylint: disable=import-error
 from discord import Embed, Object
 from os import environ as env
 from discord.errors import Forbidden
@@ -11,7 +10,7 @@ from aiotrello.exceptions import TrelloUnauthorized, TrelloNotFound, TrelloBadRe
 get_prefix, post_event = Bloxlink.get_module("utils", attrs=["get_prefix", "post_event"])
 get_options = Bloxlink.get_module("trello", attrs=["get_options"])
 parse_message = Bloxlink.get_module("commands", attrs=["parse_message"])
-cache_set, cache_pop = Bloxlink.get_module("cache", attrs=["set", "pop"])
+clear_guild_data, set_guild_value = Bloxlink.get_module("cache", attrs=["clear_guild_data", "set_guild_value"])
 get_features = Bloxlink.get_module("premium", attrs=["get_features"])
 
 
@@ -94,13 +93,14 @@ class SettingsCommand(Bloxlink.Module):
             value = None
 
             if option_data[0]:
-                value = option_data[0](guild, guild_data) # pylint: disable=not-callable
+                value = str(option_data[0](guild, guild_data)) # pylint: disable=not-callable
             else:
                 try:
-                    value = str(guild_data.get(option_name, DEFAULTS.get(option_name, "False"))).replace("{prefix}", prefix)
+                    value = str(guild_data.get(option_name, DEFAULTS.get(option_name, "False")))
                 except KeyError:
                     value = str(guild_data.get(option_name, DEFAULTS.get(option_name, "False")))
 
+            value = value.replace("{prefix}", prefix)
             text_buffer.append(f"**{option_name}** {ARROW} {value}")
 
         embed.description = "\n".join(text_buffer)
@@ -186,7 +186,7 @@ class SettingsCommand(Bloxlink.Module):
                     "footer": "Say **clear** to set as the default value.",
                     "formatting": False,
                     "choices": ("enable", "disable", "clear")
-                }])
+                }], last=True)
 
                 parsed_bool_choice = parsed_value["choice"]
 
@@ -211,7 +211,7 @@ class SettingsCommand(Bloxlink.Module):
                     "footer": "Say **clear** to set as the default value.",
                     "formatting": False,
                     "max": option_find[2]
-                }]))["choice"]
+                }], last=True))["choice"]
 
                 if parsed_value == "clear":
                     parsed_value = DEFAULTS.get(choice)
@@ -232,7 +232,7 @@ class SettingsCommand(Bloxlink.Module):
                     "exceptions": ("clear",),
                     "footer": "Say **clear** to set as the default value.",
                     "formatting": False
-                }]))["role"]
+                }], last=True))["role"]
 
                 if parsed_value == "clear":
                     parsed_value = DEFAULTS.get(choice)
@@ -256,14 +256,14 @@ class SettingsCommand(Bloxlink.Module):
                     "formatting": False,
                     "exceptions": ("clear",),
                     "max": option_find[2]
-                }]))["choice"]
+                }], last=True))["choice"]
 
                 if parsed_value == "clear":
                     parsed_value = DEFAULTS.get(choice)
 
                 await self.r.table("guilds").insert({
                     "id": str(guild.id),
-                    choice: int(parsed_value)
+                    choice: parsed_value
                 }, conflict="update").run()
 
                 success_text = f"Successfully saved your new ``{choice}``!"
@@ -279,7 +279,7 @@ class SettingsCommand(Bloxlink.Module):
                     "formatting": False,
                     "exceptions": ["clear"],
                     "choices": option_find[2]
-                }]))["choice"]
+                }], last=True))["choice"]
 
                 if parsed_value == "clear":
                     parsed_value = DEFAULTS.get(choice)
@@ -318,9 +318,7 @@ class SettingsCommand(Bloxlink.Module):
             except (TrelloNotFound, TrelloBadRequest):
                 pass
 
-        await cache_set(choice, guild.id, parsed_value)
-
-        await cache_pop("guild_data", guild.id)
+        await set_guild_value(guild, choice, parsed_value)
 
         await post_event(guild, guild_data, "configuration", f"{author.mention} ({author.id}) has **changed** the ``{choice}`` option.", BROWN_COLOR)
 
@@ -363,12 +361,13 @@ class SettingsCommand(Bloxlink.Module):
                 "embed_color": ORANGE_COLOR,
                 "type": "choice",
                 "footer": "Say **yes** to clear all of your settings, or **no** to cancel."
-            }]))["continue"]
+            }], last=True))["continue"]
 
             if cont == "no":
                 raise CancelledPrompt
 
             await self.r.table("guilds").get(str(guild.id)).delete().run()
+            await self.r.table("addonData").get(str(guild.id)).delete().run()
 
             if trello_board:
                 trello_options, _ = await get_options(trello_board, return_cards=True)
@@ -396,6 +395,8 @@ class SettingsCommand(Bloxlink.Module):
 
 
             await post_event(guild, guild_data, "configuration", f"{author.mention} ({author.id}) has **deleted** all server information.", BROWN_COLOR)
+
+            await clear_guild_data(guild)
 
             raise Message("Your server information was successfully cleared.", type="success")
 
@@ -446,7 +447,7 @@ class SettingsCommand(Bloxlink.Module):
                         "embed_color": ORANGE_COLOR,
                         "formatting": False,
                         "footer": "Say **yes** to delete these roles, or **no** to cancel."
-                    }]))["delete_roles"]
+                    }], last=True))["delete_roles"]
 
                     if delete_roles == "yes":
                         for role_id in role_ids:
@@ -485,6 +486,8 @@ class SettingsCommand(Bloxlink.Module):
 
 
             await post_event(guild, guild_data, "configuration", f"{author.mention} ({author.id}) has **deleted** all binds.", BROWN_COLOR)
+
+            await clear_guild_data(guild)
 
             raise Message("Successfully **cleared** all of your bound roles.", type="success")
 

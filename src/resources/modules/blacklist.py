@@ -7,7 +7,7 @@ import re
 
 
 trello = Bloxlink.get_module("trello", attrs="trello")
-cache_set, cache_get, cache_pop = Bloxlink.get_module("cache", attrs=["set", "get", "pop"])
+cache_set, cache_pop = Bloxlink.get_module("cache", attrs=["set", "pop"])
 
 
 @Bloxlink.module
@@ -32,14 +32,14 @@ class Blacklist(Bloxlink.Module):
                 if directory == "discord_ids":
                     ID = int(ID)
 
-                await cache_set(f"blacklist:{directory}", ID, desc)
+                await cache_set(f"blacklist:{directory}:{ID}", desc)
 
 
     async def load_blacklist(self):
         if RELEASE in ("CANARY", "LOCAL"):
             try:
                 self.trello_board = await trello.get_board("https://trello.com/b/jkvnyaJo/blacklist")
-            except:
+            except Exception:
                 pass
             else:
                 roblox_ids = await self.trello_board.get_list(lambda l: l.name == "Roblox Accounts")
@@ -63,7 +63,7 @@ class Blacklist(Bloxlink.Module):
                         await self.r.db("bloxlink").table("restrictedUsers").insert(restricted_user, conflict="update").run()
                     else:
                         if restriction["type"] in ("global", "bot"):
-                            await cache_set(f"blacklist:discord_ids", int(restricted_user["id"]), restriction["reason"])
+                            await cache_set(f"blacklist:discord_ids:{restricted_user['id']}", restriction["reason"])
 
                 if not restrictions:
                     await self.r.db("bloxlink").table("restrictedUsers").get(restricted_user["id"]).delete().run()

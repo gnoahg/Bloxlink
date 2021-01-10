@@ -2,16 +2,15 @@ from os import getpid
 import json
 import uuid
 import asyncio
-from discord import Status, Game, Streaming, Object
+from discord import Status, Game, Streaming
 from discord.errors import NotFound, Forbidden
 from ..structures.Bloxlink import Bloxlink # pylint: disable=import-error
-from ..constants import CLUSTER_ID, SHARD_RANGE, STARTED, IS_DOCKER, PLAYING_STATUS, RELEASE, GREEN_COLOR # pylint: disable=import-error
-from ..exceptions import (BloxlinkBypass, Blacklisted, UserNotVerified, Blacklisted, PermissionError, # pylint: disable=import-error
+from ..constants import CLUSTER_ID, SHARD_RANGE, STARTED, IS_DOCKER, PLAYING_STATUS, RELEASE, GREEN_COLOR, PROMPT # pylint: disable=import-error
+from ..exceptions import (BloxlinkBypass, Blacklisted, Blacklisted, PermissionError, # pylint: disable=import-error
                          RobloxAPIError, CancelCommand, RobloxDown) # pylint: disable=import-error
-from config import PROMPT, PREFIX # pylint: disable=import-error, no-name-in-module
+from config import PREFIX # pylint: disable=import-error, no-name-in-module
 from time import time
 from math import floor
-from os import environ as env
 from psutil import Process
 import async_timeout
 
@@ -76,7 +75,15 @@ class IPC(Bloxlink.Module):
                     except NotFound:
                         return
 
-                roblox_user, _ = await get_user(roblox_id=roblox_id)
+                try:
+                    roblox_user, _ = await get_user(roblox_id=roblox_id)
+                except RobloxDown:
+                    try:
+                        await member.send("Roblox appears to be down, so I was unable to retrieve your Roblox information. Please try again later.")
+                    except Forbidden:
+                        pass
+
+                    return
 
                 try:
                     added, removed, nickname, errors, roblox_user = await guild_obligations(
