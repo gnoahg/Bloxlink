@@ -207,7 +207,7 @@ ARROW = "\u2192"
 
 MAGIC_ROLES = ["Bloxlink Admin", "Bloxlink Bypass", "Bloxlink Updater"]
 
-OWNER = 84117866944663552
+OWNER = 660930457575096330
 
 HELP_DESCRIPTION = "**Welcome to Bloxlink!**\n\n" \
                    "**Support Server:** https://blox.link/support\n" \
@@ -256,7 +256,7 @@ AVATARS = {
     "PRIDE": "https://cdn.discordapp.com/attachments/480614508633522176/730969660010266644/rainbow_resized.png"
 }
 
-STREAMERS = (84117866944663552, 194962036784889858, 84388454456127488)
+STREAMERS = (84117866944663552, 194962036784889858, 84388454456127488, 660930457575096330)
 
 if RELEASE == "LOCAL":
     CACHE_CLEAR = 2
