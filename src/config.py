@@ -32,15 +32,15 @@ REDIS_HOST = "redis"
 REDIS_PORT = 6379
 REDIS_PASSWORD = None
 
-TOKEN = None
+TOKEN = "OTQwNzA3MzYwMTIzNTM5NjA2.YgLUAA.2w30t16YZaU-zZsE-tozogYKS0U"
 
-BLOXLINK_GUILD = None # your guild ID, used to load nitro boosters and other data
+BLOXLINK_GUILD = "782979968232849469" # your guild ID, used to load nitro boosters and other data
 
 BOTS = {
 	"PRO": 469652514501951518,
 	"MAIN": 426537812993638400,
 	"CANARY": 442912486702710784,
-	"LOCAL": 454053406471094282
+	"LOCAL": 940707360123539606
 }
 
 RESTRICTIONS_TRELLO = "" # Your Trello board link to load restrictions.
