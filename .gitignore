@@ -128,5 +128,13 @@ src/commands/verifyall.py
 src/commands/whitelabel.py
 src/config.py
 src/resources/constants.py
-
-.vscode
+src/addons/verification/verifyall.py
+src/commands/precedent.py
+src/commands/set-coins.py
+src/commands/shop.py
+src/resources/modules/potions.py
+src/resources/modules/currency.py
+slash_creator.py
+src/commands/feeds.py
+src/commands/banevaders.py
+src/commands/cm_tools.py

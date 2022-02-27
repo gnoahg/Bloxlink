@@ -5,8 +5,8 @@ from resources.constants import RELEASE, IS_DOCKER # pylint: disable=import-erro
 PREFIX = "!"
 
 WEBHOOKS = { # discord webhook links
-	"LOGS":  "https://discord.com/api/webhooks/798940930275016795/jsgzRsHAKIqyZA1QHL9k-o2XVyVLlFPJXMaWSzcASQGe4fZq3EmgJQZHieer-u3-YIYL",
-	"ERRORS": "https://discord.com/api/webhooks/798940712287862844/vpfHdizTPg8JD71T1411RGiljZ2WkoD-WAcRocOr8-wVipySIbS4x0Dsbgm-VhXZ_3Df"
+	"LOGS":  None,
+	"ERRORS": None
 }
 
 REACTIONS = { # discord emote mention strings
@@ -32,7 +32,7 @@ REDIS_HOST = "redis"
 REDIS_PORT = 6379
 REDIS_PASSWORD = None
 
-TOKEN = "OTQwNzA3MzYwMTIzNTM5NjA2.YgLUAA.2w30t16YZaU-zZsE-tozogYKS0U"
+TOKEN = None
 
 BLOXLINK_GUILD = None # your guild ID, used to load nitro boosters and other data
 
