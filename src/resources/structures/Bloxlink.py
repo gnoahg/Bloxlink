@@ -11,14 +11,14 @@ import traceback
 import datetime
 import logging
 import aiohttp
-import aredis
+
 #import sentry_sdk
 import asyncio; loop = asyncio.get_event_loop()
 
-from rethinkdb.errors import ReqlDriverError, ReqlOpFailedError
+
 
 try:
-    from rethinkdb import RethinkDB; r = RethinkDB() # pylint: disable=no-name-in-module
+    from rethinkdb import RethinkDB; r = RethinkDB()
 except ImportError:
     import rethinkdb as r
 finally:

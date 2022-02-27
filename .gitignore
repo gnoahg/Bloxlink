@@ -128,6 +128,7 @@ src/commands/verifyall.py
 src/commands/whitelabel.py
 src/config.py
 src/resources/constants.py
+<<<<<<< HEAD
 src/addons/verification/verifyall.py
 src/commands/precedent.py
 src/commands/set-coins.py
@@ -138,3 +139,7 @@ slash_creator.py
 src/commands/feeds.py
 src/commands/banevaders.py
 src/commands/cm_tools.py
+=======
+
+.vscode
+>>>>>>> 6d160ab00a17079a61d360cd861d7bd3b15992af

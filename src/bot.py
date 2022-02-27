@@ -1,12 +1,20 @@
+import discord
+
 from os import environ
 import asyncio
 import logging
 import signal
 import sys
 import os
+<<<<<<< HEAD
 from resources.constants import MODULE_DIR # pylint: disable=import-error, no-name-in-module
 from resources.structures.Bloxlink import Bloxlink # pylint: disable=import-error, no-name-in-module
 from resources.secrets import TOKEN # , SENTRY_URL, VALID_SECRETS # pylint: disable=import-error, no-name-in-module
+=======
+from resources.constants import MODULE_DIR # pylint: disable=import-error
+Bloxlink = discord.Client()
+from resources.secrets import TOKEN # , SENTRY_URL, VALID_SECRETS # pylint: disable=import-error
+>>>>>>> 6d160ab00a17079a61d360cd861d7bd3b15992af
 
 logger = logging.getLogger()
 logging.basicConfig(level=getattr("logging", environ.get("DEBUG_MODE", "WARNING"), "WARNING"))
@@ -24,7 +32,7 @@ async def register_modules():
         for filename in [f.replace(".py", "") for f in files]:
             Bloxlink.get_module(path=directory, dir_name=filename)
 
-"""
+
 def load_sentry():
     from resources.constants import RELEASE # pylint: disable=import-error, no-name-in-module
 
@@ -55,7 +63,7 @@ def load_sentry():
 
         except:
             print("sentry failed", flush=True)
-"""
+
 
 
 async def handle_signal(sig):
@@ -83,8 +91,9 @@ async def signals_handler():
         loop.add_signal_handler(getattr(signal, signame),
                                 lambda: asyncio.ensure_future(handle_signal(signame), loop=loop))
 
+
 async def main():
-    #load_sentry()
+    load_sentry()
 
     await signals_handler()
     await register_modules()
