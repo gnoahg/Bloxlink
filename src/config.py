@@ -23,7 +23,7 @@ REACTIONS = { # discord emote mention strings
 	"BLANK": "<:blank:881783214014885908>"
 }
 
-RETHINKDB_HOST = "rethinkdb"
+RETHINKDB_HOST = "localhost"
 RETHINKDB_PASSWORD = "1"
 RETHINKDB_PORT = 28015
 RETHINKDB_DB = "bloxlink"

@@ -31,7 +31,7 @@ services:
       - HOSTNAME=bot-0
       - TOKEN=OTQwNzA3MzYwMTIzNTM5NjA2.YgLUAA.2w30t16YZaU-zZsE-tozogYKS0U
       - RETHINKDB_PASSWORD=1
-      - RETHINKDB_HOST=rethinkdb
+      - RETHINKDB_HOST=localhost
       - RETHINKDB_PORT=28015
       - RETHINKDB_DB=bloxlink
       - REDIS_HOST=redis
