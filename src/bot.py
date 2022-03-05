@@ -24,7 +24,7 @@ async def register_modules():
         for filename in [f.replace(".py", "") for f in files]:
             Bloxlink.get_module(path=directory, dir_name=filename)
 
-"""
+
 def load_sentry():
     from resources.constants import RELEASE # pylint: disable=import-error, no-name-in-module
 
@@ -55,7 +55,7 @@ def load_sentry():
 
         except:
             print("sentry failed", flush=True)
-"""
+
 
 
 async def handle_signal(sig):
