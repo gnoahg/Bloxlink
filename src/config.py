@@ -24,7 +24,7 @@ REACTIONS = { # discord emote mention strings
 }
 
 RETHINKDB_HOST = "localhost"
-RETHINKDB_PASSWORD = "1"
+RETHINKDB_PASSWORD = None
 RETHINKDB_PORT = 28015
 RETHINKDB_DB = "bloxlink"
 
