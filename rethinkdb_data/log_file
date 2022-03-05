@@ -15,3 +15,22 @@
 2022-03-05T10:03:51.790796000 0.236575s notice: Listening on http addresses: 127.0.0.1, ::1
 2022-03-05T10:03:51.790801000 0.236581s notice: To fully expose RethinkDB on the network, bind to all addresses by running rethinkdb with the `--bind all` command line option.
 2022-03-05T10:03:51.790804000 0.236584s notice: Server ready, "LongboatHome_local_f15" e595a576-8ee1-4d32-b9ec-9a667ea90e4d
+2022-03-05T10:05:45.448965000 113.894199s notice: Server got SIGINT from pid 2546, uid 503; shutting down...
+2022-03-05T10:05:45.450115000 113.895348s notice: Shutting down client connections...
+2022-03-05T10:05:45.450821000 113.896054s notice: All client connections closed.
+2022-03-05T10:05:45.450832000 113.896065s notice: Shutting down storage engine... (This may take a while if you had a lot of unflushed data in the writeback cache.)
+2022-03-05T10:05:45.453757000 113.898990s notice: Storage engine shut down.
+2022-03-05T10:05:50.855583000 0.009538s notice: Running rethinkdb 2.4.1 (CLANG 11.0.3 (clang-1103.0.32.62))...
+2022-03-05T10:05:50.869072000 0.023026s notice: Running on Darwin 21.3.0 x86_64
+2022-03-05T10:05:50.869131000 0.023083s notice: Loading data from directory /Users/noah/Bloxlink/rethinkdb_data
+2022-03-05T10:05:50.924293000 0.078245s info: Automatically using cache size of 100 MB
+2022-03-05T10:05:50.924297000 0.078249s warn: Cache size does not leave much memory for server and query overhead (available memory: 244 MB).
+2022-03-05T10:05:50.924301000 0.078254s warn: Cache size is very low and may impact performance.
+2022-03-05T10:05:50.925853000 0.079805s notice: Listening for intracluster connections on port 29015
+2022-03-05T10:05:50.928505000 0.082458s notice: Listening for client driver connections on port 28015
+2022-03-05T10:05:50.928566000 0.082518s notice: Listening for administrative HTTP connections on port 8080
+2022-03-05T10:05:50.928568000 0.082521s notice: Listening on cluster addresses: 127.0.0.1, ::1
+2022-03-05T10:05:50.928571000 0.082523s notice: Listening on driver addresses: 127.0.0.1, ::1
+2022-03-05T10:05:50.928574000 0.082526s notice: Listening on http addresses: 127.0.0.1, ::1
+2022-03-05T10:05:50.928577000 0.082530s notice: To fully expose RethinkDB on the network, bind to all addresses by running rethinkdb with the `--bind all` command line option.
+2022-03-05T10:05:50.928583000 0.082535s notice: Server ready, "LongboatHome_local_f15" e595a576-8ee1-4d32-b9ec-9a667ea90e4d
