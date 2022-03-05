@@ -1,0 +1,17 @@
+2022-03-05T10:03:51.561992000 0.007777s notice: Recursively removing directory /Users/noah/Bloxlink/rethinkdb_data/tmp
+2022-03-05T10:03:51.567137000 0.012920s notice: Initializing directory /Users/noah/Bloxlink/rethinkdb_data
+2022-03-05T10:03:51.567251000 0.013032s info: Creating a default database for your convenience. (This is because you ran 'rethinkdb' without 'create', 'serve', or '--join', and the directory '/Users/noah/Bloxlink/rethinkdb_data' did not already exist or is empty.)
+2022-03-05T10:03:51.567273000 0.013053s notice: Running rethinkdb 2.4.1 (CLANG 11.0.3 (clang-1103.0.32.62))...
+2022-03-05T10:03:51.595423000 0.041204s notice: Running on Darwin 21.3.0 x86_64
+2022-03-05T10:03:51.595482000 0.041262s notice: Loading data from directory /Users/noah/Bloxlink/rethinkdb_data
+2022-03-05T10:03:51.786195000 0.231975s info: Automatically using cache size of 100 MB
+2022-03-05T10:03:51.786203000 0.231982s warn: Cache size does not leave much memory for server and query overhead (available memory: 381 MB).
+2022-03-05T10:03:51.786209000 0.231988s warn: Cache size is very low and may impact performance.
+2022-03-05T10:03:51.788165000 0.233945s notice: Listening for intracluster connections on port 29015
+2022-03-05T10:03:51.790745000 0.236525s notice: Listening for client driver connections on port 28015
+2022-03-05T10:03:51.790788000 0.236568s notice: Listening for administrative HTTP connections on port 8080
+2022-03-05T10:03:51.790791000 0.236570s notice: Listening on cluster addresses: 127.0.0.1, ::1
+2022-03-05T10:03:51.790793000 0.236572s notice: Listening on driver addresses: 127.0.0.1, ::1
+2022-03-05T10:03:51.790796000 0.236575s notice: Listening on http addresses: 127.0.0.1, ::1
+2022-03-05T10:03:51.790801000 0.236581s notice: To fully expose RethinkDB on the network, bind to all addresses by running rethinkdb with the `--bind all` command line option.
+2022-03-05T10:03:51.790804000 0.236584s notice: Server ready, "LongboatHome_local_f15" e595a576-8ee1-4d32-b9ec-9a667ea90e4d
